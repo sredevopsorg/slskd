@@ -878,7 +878,7 @@ namespace slskd
                         License = new OpenApiLicense
                         {
                             Name = "AGPL-3.0 license",
-                            Url = new Uri("https://github.com/sredevopsorg/slskd/blob/master/LICENSE"),
+                            Url = new Uri("https://github.com/sredevopsorg/slskd/blob/main/LICENSE"),
                         },
                     });
 

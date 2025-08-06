@@ -1,9 +1,9 @@
 # slskd
 
-[![Build](https://img.shields.io/github/actions/workflow/status/slskd/slskd/ci.yml?branch=master&logo=github)](https://github.com/sredevopsorg/slskd/actions/workflows/ci.yml)
-[![Docker Pulls](https://img.shields.io/docker/pulls/slskd/slskd?logo=docker)](https://hub.docker.com/r/slskd/slskd)
-[![GitHub all releases](https://img.shields.io/github/downloads/slskd/slskd/total?logo=github&color=brightgreen)](https://github.com/sredevopsorg/slskd/releases)
-[![Contributors](https://img.shields.io/github/contributors/slskd/slskd?logo=github)](https://github.com/sredevopsorg/slskd/graphs/contributors)
+[![Build](https://img.shields.io/github/actions/workflow/status/sredevopsorg/slskd/ci.yml?branch=master&logo=github)](https://github.com/sredevopsorg/slskd/actions/workflows/ci.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/sredevopsorg/slskd?logo=docker)](https://hub.docker.com/r/sredevopsorg/slskd)
+[![GitHub all releases](https://img.shields.io/github/downloads/sredevopsorg/slskd/total?logo=github&color=brightgreen)](https://github.com/sredevopsorg/slskd/releases)
+[![Contributors](https://img.shields.io/github/contributors/sredevopsorg/slskd?logo=github)](https://github.com/sredevopsorg/slskd/graphs/contributors)
 [![Discord](https://img.shields.io/discord/971446666257391616?label=Discord&logo=discord)](https://slskd.org/discord)
 [![Matrix](https://img.shields.io/badge/Matrix-%3F%20online-na?logo=matrix&color=brightgreen)](https://slskd.org/matrix)
 
@@ -53,7 +53,7 @@ docker run -d \
   -e SLSKD_REMOTE_CONFIGURATION=true \
   -v <path/to/application/data>:/app \
   --name slskd \
-  slskd/slskd:latest
+  sredevopsorg/slskd:latest
 ```
 
 ### With Docker-Compose
@@ -63,7 +63,7 @@ docker run -d \
 version: "2"
 services:
   slskd:
-    image: slskd/slskd
+    image: sredevopsorg/slskd
     container_name: slskd
     ports:
       - "5030:5030"
