@@ -595,33 +595,40 @@ namespace slskd
             services.AddSingleton<IWaiter, Waiter>();
             services.AddSingleton<ConnectionWatchdog, ConnectionWatchdog>();
 
-            if (OptionsAtStartup.Flags.Volatile)
+            // wire up all of the connection strings we'll use. this is somewhat annoying but necessary because of the
+            // intersection of run-time options (volatile, non-volatile) and ORM/mappers in use (EF, Dapper)
+            var connectionStringDictionary = new ConnectionStringDictionary(Database.List
+                .Select(database =>
+                {
+                    var connStr = OptionsAtStartup.Flags.Volatile
+                        ? $"Data Source=file:{database}?mode=memory;Cache=shared;Pooling=True;"
+                        : $"Data Source={Path.Combine(DataDirectory, $"{database}.db")};Cache=shared;Pooling=True;";
+
+                    return new KeyValuePair<Database, ConnectionString>(database, connStr);
+                })
+                .ToDictionary(x => x.Key, x => x.Value));
+
+            services.AddDbContext<SearchDbContext>(connectionStringDictionary[Database.Search]);
+            services.AddDbContext<TransfersDbContext>(connectionStringDictionary[Database.Transfers]);
+            services.AddDbContext<MessagingDbContext>(connectionStringDictionary[Database.Messaging]);
+            services.AddDbContext<EventsDbContext>(connectionStringDictionary[Database.Events]);
+
+            services.AddSingleton<ConnectionStringDictionary>(connectionStringDictionary);
+
+            if (!OptionsAtStartup.Flags.Volatile)
             {
-                static string MemoryConnectionString(string name) => $"Data Source=file:{name}?mode=memory;Cache=shared;Pooling=True;";
-
-                services.AddDbContext<SearchDbContext>(MemoryConnectionString("search"));
-                services.AddDbContext<TransfersDbContext>(MemoryConnectionString("transfers"));
-                services.AddDbContext<MessagingDbContext>(MemoryConnectionString("messaging"));
-                services.AddDbContext<EventsDbContext>(MemoryConnectionString("events"));
-            }
-            else
-            {
-                static string DiskConnectionString(string name) => $"Data Source={Path.Combine(DataDirectory, $"{name}.db")};Cache=shared;Pooling=True;";
-
-                services.AddDbContext<SearchDbContext>(DiskConnectionString("search"));
-                services.AddDbContext<TransfersDbContext>(DiskConnectionString("transfers"));
-                services.AddDbContext<MessagingDbContext>(DiskConnectionString("messaging"));
-                services.AddDbContext<EventsDbContext>(DiskConnectionString("events"));
-
                 // we're working with non-volatile database files, so register a Migrator to be used later in the
                 // bootup process. the presence of a Migrator instance in DI determines whether a migration is needed.
                 // it's important that we keep this list of databases in sync with those used by the application; anything
                 // not in this list will not be able to be migrated.
-                services.AddSingleton<Migrator>(_ => new Migrator(databases: ["search", "transfers", "messaging", "events"]));
+                services.AddSingleton<Migrator>(_ => new Migrator(databases: connectionStringDictionary));
             }
 
             services.AddSingleton<EventService>();
             services.AddSingleton<EventBus>();
+
+            services.AddSingleton<TelemetryService>();
+            services.AddSingleton<PrometheusService>();
 
             services.AddSingleton<ScriptService>();
             services.AddSingleton<WebhookService>();
@@ -1004,7 +1011,8 @@ namespace slskd
                             }
                         }
 
-                        var metricsAsText = await Metrics.BuildAsync();
+                        var telemetryService = context.RequestServices.GetRequiredService<TelemetryService>();
+                        var metricsAsText = await telemetryService.Prometheus.GetMetricsAsString();
 
                         context.Response.Headers.Append("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
                         await context.Response.WriteAsync(metricsAsText);
