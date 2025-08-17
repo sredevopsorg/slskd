@@ -96,7 +96,7 @@ namespace slskd
         /// <summary>
         ///     The url to the issues/support site.
         /// </summary>
-        public static readonly string IssuesUrl = "https://github.com/slskd/slskd/issues";
+        public static readonly string IssuesUrl = "https://github.com/sredevopsorg/slskd/issues";
 
         /// <summary>
         ///     The global prefix for environment variables.
@@ -314,7 +314,8 @@ namespace slskd
                 var (filename, password) = GenerateX509Certificate(password: Cryptography.Random.GetBytes(16).ToBase62(), filename: $"{AppName}.pfx");
 
                 Log.Information($"Certificate exported to {filename}");
-                Log.Information($"Password: {password}");
+                // Do not log the password to logs; output to console only for user visibility.
+                Console.WriteLine($"Password: {password}");
                 return;
             }
 
@@ -879,12 +880,12 @@ namespace slskd
                         Contact = new OpenApiContact
                         {
                             Name = "GitHub",
-                            Url = new Uri("https://github.com/slskd/slskd"),
+                            Url = new Uri("https://github.com/sredevopsorg/slskd"),
                         },
                         License = new OpenApiLicense
                         {
                             Name = "AGPL-3.0 license",
-                            Url = new Uri("https://github.com/slskd/slskd/blob/master/LICENSE"),
+                            Url = new Uri("https://github.com/sredevopsorg/slskd/blob/main/LICENSE"),
                         },
                     });
 
