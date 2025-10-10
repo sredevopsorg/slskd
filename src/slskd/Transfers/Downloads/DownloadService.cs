@@ -229,9 +229,13 @@ namespace slskd.Transfers.Downloads
 
             var lockName = $"{nameof(DownloadAsync)}:{transfer.Username}:{transfer.Filename}";
 
+            // Helper to sanitize user input before logging
+            static string SanitizeForLog(string s) =>
+                s?.Replace("\r", "").Replace("\n", "");
+
             if (!Locks.TryAdd(lockName, true))
             {
-                Log.Debug("Ignoring concurrent invocation; lock {LockName} already held", lockName);
+                Log.Debug("Ignoring concurrent invocation; lock {LockName} already held", SanitizeForLog(lockName));
                 return null;
             }
 
