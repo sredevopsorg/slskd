@@ -219,6 +219,7 @@ namespace slskd
         private OptionsAtStartup OptionsAtStartup { get; set; }
         private IOptionsMonitor<Options> OptionsMonitor { get; set; }
         private SemaphoreSlim OptionsSyncRoot { get; } = new SemaphoreSlim(1, 1);
+        private SemaphoreSlim EnqueueRequestRateLimiter { get; } = new SemaphoreSlim(20, 20);
         private Options PreviousOptions { get; set; }
         private IPushbulletService Pushbullet { get; }
         private DateTime SharesRefreshStarted { get; set; }
@@ -374,18 +375,24 @@ namespace slskd
             var connectionOptions = new ConnectionOptions(
                 readBufferSize: OptionsAtStartup.Soulseek.Connection.Buffer.Read,
                 writeBufferSize: OptionsAtStartup.Soulseek.Connection.Buffer.Write,
-                writeQueueSize: OptionsAtStartup.Soulseek.Connection.Buffer.WriteQueue,
+                writeQueueSize: int.MaxValue, // no write queue for peer, server or transfer connections
                 connectTimeout: OptionsAtStartup.Soulseek.Connection.Timeout.Connect,
                 inactivityTimeout: OptionsAtStartup.Soulseek.Connection.Timeout.Inactivity,
                 proxyOptions: proxyOptions);
 
             // os-specific keepalive is configured for long-lived connections for the server and distributed parent/children
-            var serverOptions = connectionOptions.With(configureSocketAction: socket => ConfigureSocketKeepAlive(socket, OptionsAtStartup.Soulseek.Connection));
-            var distributedOptions = connectionOptions.With(configureSocketAction: socket => ConfigureSocketKeepAlive(socket, OptionsAtStartup.Soulseek.Connection));
+            var serverOptions = connectionOptions.With(
+                inactivityTimeout: -1, // don't disconnect due to inactivity
+                configureSocket: socket => ConfigureSocketKeepaliveOptions(socket, OptionsAtStartup.Soulseek.Connection));
+
+            var distributedOptions = connectionOptions.With(
+                writeQueueSize: OptionsAtStartup.Soulseek.Connection.Buffer.WriteQueue, // write queue set to keep distributed children from impacting performance
+                configureSocket: socket => ConfigureSocketKeepaliveOptions(socket, OptionsAtStartup.Soulseek.Connection));
 
             var transferOptions = connectionOptions.With(
                 readBufferSize: OptionsAtStartup.Soulseek.Connection.Buffer.Transfer,
-                writeBufferSize: OptionsAtStartup.Soulseek.Connection.Buffer.Transfer);
+                writeBufferSize: OptionsAtStartup.Soulseek.Connection.Buffer.Transfer,
+                inactivityTimeout: OptionsAtStartup.Soulseek.Connection.Timeout.Transfer);
 
             var patch = new SoulseekClientOptionsPatch(
                 listenIPAddress: IPAddress.Parse(OptionsAtStartup.Soulseek.ListenIpAddress),
@@ -495,7 +502,7 @@ namespace slskd
             return Task.CompletedTask;
         }
 
-        private void ConfigureSocketKeepAlive(Socket socket, Options.SoulseekOptions.ConnectionOptions options)
+        private void ConfigureSocketKeepaliveOptions(Socket socket, Options.SoulseekOptions.ConnectionOptions options)
         {
             /*
                 os-specific keepalive is configured for long-lived connections for the server and distributed parent/children
@@ -531,6 +538,8 @@ namespace slskd
         {
             var stopwatch = new Stopwatch();
             var decisionStopwatch = new Stopwatch();
+
+            await EnqueueRequestRateLimiter.WaitAsync();
 
             try
             {
@@ -742,6 +751,9 @@ namespace slskd
             {
                 decisionStopwatch.Stop();
                 stopwatch.Stop();
+
+                EnqueueRequestRateLimiter.Release();
+
                 Log.Debug("EnqueueDownload for {Username}/{Filename} completed in {ElapsedOverall}ms, decision made in {ElapsedDecision}ms", username, filename, stopwatch.ElapsedMilliseconds, decisionStopwatch.ElapsedMilliseconds);
             }
         }
@@ -1391,12 +1403,18 @@ namespace slskd
                             inactivityTimeout: connection.Timeout.Inactivity,
                             proxyOptions: proxyPatch);
 
-                        serverPatch = connectionPatch.With(configureSocketAction: socket => ConfigureSocketKeepAlive(socket, options: connection));
-                        distributedPatch = connectionPatch.With(configureSocketAction: socket => ConfigureSocketKeepAlive(socket, options: connection));
+                        serverPatch = connectionPatch.With(
+                            inactivityTimeout: -1, // don't disconnect due to inactivity
+                            configureSocket: socket => ConfigureSocketKeepaliveOptions(socket, options: connection));
+
+                        distributedPatch = connectionPatch.With(
+                            writeQueueSize: connection.Buffer.WriteQueue, // write queue set to keep distributed children from impacting performance
+                            configureSocket: socket => ConfigureSocketKeepaliveOptions(socket, options: connection));
 
                         transferPatch = connectionPatch.With(
                             readBufferSize: OptionsAtStartup.Soulseek.Connection.Buffer.Transfer,
-                            writeBufferSize: OptionsAtStartup.Soulseek.Connection.Buffer.Transfer);
+                            writeBufferSize: OptionsAtStartup.Soulseek.Connection.Buffer.Transfer,
+                            inactivityTimeout: connection.Timeout.Transfer);
                     }
 
                     var patch = new SoulseekClientOptionsPatch(
