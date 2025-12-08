@@ -342,7 +342,8 @@ public class ReportsController : ControllerBase
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Error fetching user details for {Username}: {Message}", username, ex.Message);
+            var sanitizedUsername = username?.Replace("\r", "").Replace("\n", "");
+            Log.Error(ex, "Error fetching user details for {Username}: {Message}", sanitizedUsername, ex.Message);
             return StatusCode(500, ex.Message);
         }
     }
