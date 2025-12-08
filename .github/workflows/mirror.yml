@@ -1,4 +1,6 @@
 name: Mirror Repository
+permissions:
+  contents: read
 
 on:
   create:
