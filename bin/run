@@ -1,5 +1,5 @@
 if [ -z "$1" ]; then
-    echo "💥  error: no image specified; provide a valid image and tag (e.g. slskd/slskd:latest)"
+    echo "💥  error: no image specified; provide a valid image and tag (e.g. sredevopsorg/slskd:latest)"
     exit 1
 fi
 
