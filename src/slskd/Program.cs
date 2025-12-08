@@ -23,8 +23,6 @@ namespace slskd
     using System.Collections.Generic;
     using System.ComponentModel;
     using System.ComponentModel.DataAnnotations;
-    using System.Diagnostics;
-
     using System.IO;
     using System.Linq;
     using System.Net;
@@ -70,6 +68,7 @@ namespace slskd
     using slskd.Search;
     using slskd.Search.API;
     using slskd.Shares;
+    using slskd.Telemetry;
     using slskd.Transfers;
     using slskd.Transfers.Downloads;
     using slskd.Transfers.Uploads;
@@ -89,6 +88,11 @@ namespace slskd
         ///     The name of the application.
         /// </summary>
         public static readonly string AppName = "slskd";
+
+        /// <summary>
+        ///     The DateTime of the 'genesis' of the application (the initial commit).
+        /// </summary>
+        public static readonly DateTime GenesisDateTime = new(2020, 12, 30, 6, 22, 0, DateTimeKind.Utc);
 
         /// <summary>
         ///     The name of the local share host.
@@ -611,12 +615,11 @@ namespace slskd
             var connectionStringDictionary = new ConnectionStringDictionary(Database.List
                 .Select(database =>
                 {
-                    var caching = OptionsAtStartup.Flags.NoSqliteCacheSharing ? "Private" : "Shared";
                     var pooling = OptionsAtStartup.Flags.NoSqlitePooling ? "False" : "True"; // don't invert and ToString this it is confusing
 
                     var connStr = OptionsAtStartup.Flags.Volatile
-                        ? $"Data Source=file:{database}?mode=memory;Cache={caching};Pooling={pooling};"
-                        : $"Data Source={Path.Combine(DataDirectory, $"{database}.db")};Cache={caching};Pooling={pooling}";
+                        ? $"Data Source=file:{database}?mode=memory;Pooling={pooling};"
+                        : $"Data Source={Path.Combine(DataDirectory, $"{database}.db")};Pooling={pooling}";
 
                     return new KeyValuePair<Database, ConnectionString>(database, connStr);
                 })
@@ -641,8 +644,9 @@ namespace slskd
             services.AddSingleton<EventService>();
             services.AddSingleton<EventBus>();
 
-            services.AddSingleton<TelemetryService>();
             services.AddSingleton<PrometheusService>();
+            services.AddSingleton<ReportsService>();
+            services.AddSingleton<TelemetryService>();
 
             services.AddSingleton<ScriptService>();
             services.AddSingleton<WebhookService>();
@@ -905,6 +909,9 @@ namespace slskd
                         },
                     });
 
+                    // allow endpoints marked with multiple content types in [Produces] to generate properly
+                    options.OperationFilter<ContentNegotiationOperationFilter>();
+
                     if (IOFile.Exists(XmlDocumentationFile))
                     {
                         options.IncludeXmlComments(XmlDocumentationFile);
@@ -1144,12 +1151,15 @@ namespace slskd
                 }))
                 .CreateLogger();
 
-            // // occurs when a faulted task's unobserved exception is about to trigger exception escalation policy, which, by default, would terminate the process.
-            // TaskScheduler.UnobservedTaskException += (sender, e) =>
-            // {
-            //     Serilog.Log.Logger.Error(e.Exception, "Unobserved exception: {Message}", e.Exception.Message);
-            //     e.SetObserved();
-            // };
+            if (OptionsAtStartup.Flags.LogUnobservedExceptions)
+            {
+                // log Exceptions raised on fired-and-forgotten tasks, which adds very little value but might help debug someday
+                TaskScheduler.UnobservedTaskException += (sender, e) =>
+                {
+                    Serilog.Log.Logger.Error(e.Exception, "Unobserved exception: {Message}", e.Exception.Message);
+                    e.SetObserved();
+                };
+            }
 
             AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
             {

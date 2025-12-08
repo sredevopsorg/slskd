@@ -418,6 +418,15 @@ namespace slskd
             public bool LogSQL { get; init; } = false;
 
             /// <summary>
+            ///     Gets a value indicating whether to log unobserved Exceptions.
+            /// </summary>
+            [Argument(default, "log-unobserved-exceptions")]
+            [EnvironmentVariable("LOG_UNOBSERVED_EXCEPTIONS")]
+            [Description("log unobserved exceptions (caution: verbose)")]
+            [RequiresRestart]
+            public bool LogUnobservedExceptions { get; init; } = false;
+
+            /// <summary>
             ///     Gets a value indicating whether the application should run in experimental mode.
             /// </summary>
             [Argument(default, "experimental")]
@@ -461,14 +470,6 @@ namespace slskd
             [EnvironmentVariable("OPTIMISTIC_RELAY_FILE_INFO")]
             [Description("use uploaded relay shares as source of truth for file existence and size")]
             public bool OptimisticRelayFileInfo { get; init; } = false;
-
-            /// <summary>
-            ///     Gets a value indicating whether SQLite cache sharing should be disabled (set to Private).
-            /// </summary>
-            [Argument(default, "no-sqlite-cache-sharing")]
-            [EnvironmentVariable("NO_SQLITE_CACHE_SHARING")]
-            [Description("disable SQLite cache sharing")]
-            public bool NoSqliteCacheSharing { get; init; } = false;
 
             /// <summary>
             ///     Gets a value indicating whether SQLite pooling should be disabled.
@@ -1248,6 +1249,12 @@ namespace slskd
 
                 if (!Enabled)
                 {
+                    return results;
+                }
+
+                if (string.IsNullOrWhiteSpace(File))
+                {
+                    results.Add(new ValidationResult("The Enabled field is true, but no File has been specified."));
                     return results;
                 }
 
